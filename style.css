@@ -1,0 +1,147 @@
+:root {
+  --bg-top: #1b2a4a;
+  --bg-bottom: #2f5d8e;
+  --card: rgba(255, 255, 255, 0.12);
+  --card-solid: #ffffff;
+  --text: #f4f8ff;
+  --text-dim: #c2d2ec;
+  --ink: #1b2a4a;
+  --ink-dim: #5b6b86;
+  --accent: #ffd166;
+  --rain: #4cc9f0;
+  --temp-high: #ff6b6b;
+  --temp-low: #4cc9f0;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN",
+    "Hiragino Sans", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
+  color: var(--text);
+  background: linear-gradient(160deg, var(--bg-top), var(--bg-bottom));
+  background-attachment: fixed;
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px 48px;
+  line-height: 1.6;
+}
+
+.app { width: 100%; max-width: 720px; }
+
+.header { text-align: center; margin-bottom: 28px; }
+.title { font-size: 2rem; font-weight: 700; letter-spacing: 0.04em; }
+.subtitle { color: var(--text-dim); font-size: 0.9rem; margin-top: 4px; }
+
+.content { display: grid; gap: 18px; }
+
+/* --- 概況カード（天気） --- */
+.hero {
+  background: var(--card);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 22px;
+  padding: 28px 24px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+.hero .date { color: var(--text-dim); font-size: 0.95rem; margin-bottom: 12px; }
+.hero .icon { width: 110px; height: 110px; margin: 0 auto 8px; }
+.hero .icon img { width: 100%; height: 100%; object-fit: contain; }
+.hero .weather-text { font-size: 1.5rem; font-weight: 700; }
+.hero .area { color: var(--text-dim); font-size: 0.85rem; margin-top: 6px; }
+
+/* --- 指標グリッド --- */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+@media (max-width: 560px) {
+  .metrics { grid-template-columns: 1fr; }
+}
+
+.metric {
+  background: var(--card-solid);
+  color: var(--ink);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.metric .label {
+  font-size: 0.8rem;
+  color: #6b7a90;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+.metric .value { font-size: 1.9rem; font-weight: 700; line-height: 1.2; }
+.metric .value .unit { font-size: 1rem; font-weight: 600; color: #6b7a90; margin-left: 2px; }
+.metric .sub { font-size: 0.82rem; color: #6b7a90; }
+
+.metric.temp .value { color: var(--ink); }
+.temp-range { display: flex; gap: 14px; margin-top: 2px; font-size: 0.95rem; font-weight: 700; }
+.temp-range .hi { color: var(--temp-high); }
+.temp-range .lo { color: #2b7fb8; }
+.metric.pressure .value { color: #2a4d7a; }
+
+/* --- 降水確率（時間帯） --- */
+.metric.pops { }
+.pops-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+.pop-cell {
+  background: #eef4fb;
+  border-radius: 12px;
+  padding: 8px 4px;
+  text-align: center;
+}
+.pop-cell .pt { font-size: 0.68rem; color: #6b7a90; }
+.pop-cell .pv { font-size: 1.05rem; font-weight: 700; color: #1d6fa5; }
+.pop-cell.dim .pv { color: #b6c2d4; }
+
+/* --- フッター --- */
+.footer { margin-top: 26px; text-align: center; }
+.reload-btn {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  padding: 10px 24px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+.reload-btn:hover { background: rgba(255, 255, 255, 0.28); }
+.reload-btn:active { transform: scale(0.97); }
+.updated { color: var(--text-dim); font-size: 0.8rem; margin-top: 12px; }
+.source { color: var(--text-dim); font-size: 0.78rem; margin-top: 6px; }
+.source a { color: var(--accent); text-decoration: none; }
+.source a:hover { text-decoration: underline; }
+
+/* --- ローディング / エラー --- */
+.loading, .error {
+  text-align: center;
+  padding: 48px 20px;
+  background: var(--card);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.spinner {
+  width: 38px; height: 38px;
+  margin: 0 auto 16px;
+  border: 4px solid rgba(255, 255, 255, 0.25);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.error .emsg { color: #ffd0d0; margin-top: 8px; font-size: 0.88rem; }
