@@ -76,7 +76,7 @@ async function fetchHourly() {
 }
 
 // --- 折れ線グラフ（インラインSVG） -------------------------------------
-function lineChart(points, accessor, { color, fill, unit, decimals = 0, nowIndex = -1 }) {
+function lineChart(points, accessor, { color, fill, unit, decimals = 0, nowIndex = -1, band = null }) {
   const vals = points.map(accessor).filter((v) => v != null);
   if (!vals.length) return "";
   const W = 720, H = 200, padL = 34, padR = 18, padT = 30, padB = 26;
@@ -98,6 +98,15 @@ function lineChart(points, accessor, { color, fill, unit, decimals = 0, nowIndex
   const nowX = nowIndex >= 0 ? x(nowIndex) : null;
   const pastShade = nowX != null
     ? `<rect x="${padL}" y="${padT}" width="${(nowX - padL).toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" fill="rgba(20,40,80,0.06)"/>`
+    : "";
+
+  // 気圧低下に注意する時間帯を帯で強調
+  const alertBand = band && band.toIndex > band.fromIndex
+    ? (() => {
+        const bx = x(band.fromIndex), bw = x(band.toIndex) - x(band.fromIndex);
+        return `<rect x="${bx.toFixed(1)}" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" fill="${band.color}" opacity="0.16"/>
+          <text x="${(bx + bw / 2).toFixed(1)}" y="${(padT + 12).toFixed(1)}" class="bandlabel" text-anchor="middle" fill="${band.color}">${band.label}</text>`;
+      })()
     : "";
 
   const dots = pts
@@ -142,6 +151,7 @@ function lineChart(points, accessor, { color, fill, unit, decimals = 0, nowIndex
         </linearGradient>
       </defs>
       ${pastShade}
+      ${alertBand}
       <polygon points="${areaPts}" fill="url(#g_${unit})"/>
       ${pastLine}
       ${futLine}
@@ -172,6 +182,66 @@ function weatherStrip(points, nowIndex) {
   return `<div class="wstrip">${cells}</div>`;
 }
 
+// --- 気圧変化の解析（気象病アラート） ----------------------------------
+// 気象病は「気圧の急な低下（下降速度）」が引き金になりやすい。
+// 今後の各時刻で 3時間あたりの気圧変化を求め、最大の低下幅から警戒レベルを判定する。
+const ALERT_LEVELS = [
+  { name: "安定", color: "#2e9e6b", emoji: "🟢",
+    advice: "この先12時間、大きな気圧の低下はなさそうです。体調への影響は小さいでしょう。" },
+  { name: "やや注意", color: "#d8a200", emoji: "🟡",
+    advice: "気圧がゆるやかに下がります。敏感な方は体調の変化に気を配りましょう。" },
+  { name: "注意", color: "#e8730c", emoji: "🟠",
+    advice: "気圧の低下に注意。頭痛・めまい・だるさが出やすい方は、早めの休息や服薬の準備を。" },
+  { name: "警戒", color: "#d6453d", emoji: "🔴",
+    advice: "気圧が大きく低下します。症状が出やすい方は無理をせず、休息・水分・服薬など早めの対策を。" },
+];
+
+function analyzePressure(points, nowIndex) {
+  const P = points.map((p) => p.pressure);
+  const current = nowIndex >= 0 && P[nowIndex] != null ? P[nowIndex] : null;
+
+  // これからの時間帯で「3時間前との差」が最も下がるところを探す
+  let worst = { delta: 0, i: -1 };
+  for (let i = Math.max(3, nowIndex + 1); i < points.length; i++) {
+    if (P[i] == null || P[i - 3] == null) continue;
+    const d = P[i] - P[i - 3]; // マイナス = 低下
+    if (d < worst.delta) worst = { delta: d, i };
+  }
+
+  const drop = worst.i >= 0 ? -worst.delta : 0; // 低下幅(hPa, 正の値)
+  let level = 0;
+  if (drop >= 5) level = 3;
+  else if (drop >= 3) level = 2;
+  else if (drop >= 1.5) level = 1;
+
+  const result = { level, drop, current, ...ALERT_LEVELS[level], band: null, timing: "" };
+  if (level > 0 && worst.i >= 0) {
+    const from = Math.max(0, worst.i - 3);
+    result.timing = `${points[from].hour}時頃〜${points[worst.i].hour}時頃に約${Math.round(drop)}hPaの低下`;
+    result.band = { fromIndex: from, toIndex: worst.i, color: ALERT_LEVELS[level].color, label: "気圧低下" };
+  }
+  return result;
+}
+
+function alertCard(a) {
+  const head = a.timing
+    ? `<div class="alert-timing">${escapeHtml(a.timing)}</div>`
+    : "";
+  const cur = a.current != null
+    ? `<div class="alert-current">現在の気圧 <strong>${a.current}</strong> hPa</div>`
+    : "";
+  return `
+    <div class="alert" style="--lv:${a.color}">
+      <div class="alert-top">
+        <span class="alert-badge">${a.emoji} ${a.name}</span>
+        ${cur}
+      </div>
+      ${head}
+      <p class="alert-advice">${escapeHtml(a.advice)}</p>
+      <p class="alert-note">※ 気圧変化からの体調管理の目安です。診断・治療は専門家にご相談ください。</p>
+    </div>`;
+}
+
 // --- 描画 --------------------------------------------------------------
 function renderCharts(data) {
   const el = document.getElementById("content");
@@ -181,7 +251,10 @@ function renderCharts(data) {
     return;
   }
   const { points, nowIndex } = data;
+  const alert = analyzePressure(points, nowIndex);
   el.innerHTML = `
+    ${alertCard(alert)}
+
     <div class="charts">
       <div class="chart-card">
         <div class="chart-head"><span class="chip weather">天気</span></div>
@@ -195,7 +268,7 @@ function renderCharts(data) {
 
       <div class="chart-card">
         <div class="chart-head"><span class="chip pressure">気圧の変化</span><span class="chart-unit">hPa</span></div>
-        ${lineChart(points, (p) => p.pressure, { color: "#2a7fd4", fill: "#2a7fd4", unit: "pres", decimals: 0, nowIndex })}
+        ${lineChart(points, (p) => p.pressure, { color: "#2a7fd4", fill: "#2a7fd4", unit: "pres", decimals: 0, nowIndex, band: alert.band })}
       </div>
     </div>`;
 }

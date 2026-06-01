@@ -11,8 +11,8 @@
 <body>
   <main class="app">
     <header class="header">
-      <h1 class="title">東京の天気</h1>
-      <p class="subtitle">過去6時間〜12時間後の移り変わり</p>
+      <h1 class="title">東京の天気と気圧</h1>
+      <p class="subtitle">気圧の変化と体調アラート（過去6時間〜12時間後）</p>
     </header>
 
     <section id="content" class="content" aria-live="polite">
@@ -29,10 +29,15 @@
         <button id="history-toggle" class="history-btn" type="button"
                 aria-expanded="false" aria-controls="history-list">
           <span class="history-label">更新履歴</span>
-          <span class="history-ver">v0.5.0</span>
+          <span class="history-ver">v0.6.0</span>
           <span class="history-caret" aria-hidden="true">▾</span>
         </button>
         <ul id="history-list" class="history-list" hidden>
+          <li>
+            <span class="hv">0.6.0</span>
+            <span class="hd">2026-06-01</span>
+            <span class="ht">気象病（天気痛）向けの気圧アラートを追加。今後12時間の急な気圧低下を解析し、警戒レベル・時間帯・対処のヒントを表示。気圧グラフ上の低下時間帯も強調。</span>
+          </li>
           <li>
             <span class="hv">0.5.0</span>
             <span class="hd">2026-06-01</span>
