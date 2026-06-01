@@ -257,8 +257,8 @@ function renderCharts(data) {
 
     <div class="charts">
       <div class="chart-card">
-        <div class="chart-head"><span class="chip weather">天気</span></div>
-        ${weatherStrip(points, nowIndex)}
+        <div class="chart-head"><span class="chip pressure">気圧の変化</span><span class="chart-unit">hPa</span></div>
+        ${lineChart(points, (p) => p.pressure, { color: "#2a7fd4", fill: "#2a7fd4", unit: "pres", decimals: 0, nowIndex, band: alert.band })}
       </div>
 
       <div class="chart-card">
@@ -267,8 +267,8 @@ function renderCharts(data) {
       </div>
 
       <div class="chart-card">
-        <div class="chart-head"><span class="chip pressure">気圧の変化</span><span class="chart-unit">hPa</span></div>
-        ${lineChart(points, (p) => p.pressure, { color: "#2a7fd4", fill: "#2a7fd4", unit: "pres", decimals: 0, nowIndex, band: alert.band })}
+        <div class="chart-head"><span class="chip weather">天気</span></div>
+        ${weatherStrip(points, nowIndex)}
       </div>
     </div>`;
 }
