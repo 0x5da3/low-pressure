@@ -1,29 +1,24 @@
 # 東京の天気（気象庁データ）
 
-気象庁（JMA）の公開データを利用して、**東京の今日の天気・気温・降水確率・気圧**を表示する静的Webアプリです。バックエンド不要で、ブラウザから気象庁のJSONを直接取得します。
+気象庁（JMA）の数値予報モデル（MSM/GSM）をもとに、**東京の天気・気温・気圧の移り変わり（過去6時間〜12時間後）**をグラフ表示する静的Webアプリです。バックエンド不要で、ブラウザから直接データを取得します。
 
 🌐 **公開サイト: https://0x5da3.github.io/low-pressure/**
 
 ## 表示するデータ
 
-| 項目 | データ元 |
+| グラフ | 内容 |
 | --- | --- |
-| 天気（アイコン・文章） | 予報 `forecast/130000.json`（東京地方） |
-| 降水確率（時間帯別） | 予報 `forecast/130000.json` |
-| 最高/最低気温 | 予報（短期＋週間） |
-| 現在の気温・気圧・湿度 | アメダス実況 `amedas/data/map/<時刻>.json`（東京 観測所 `44132`） |
-| 12時間後までの気温・天気・気圧の変化（グラフ） | 気象庁 数値予報モデル（MSM/GSM）を Open-Meteo 経由で取得 |
+| 天気 | 時間帯ごとの天気（絵文字ストリップ・2時間ごと） |
+| 気温の変化 | 過去6時間〜12時間後の気温（°C）の折れ線 |
+| 気圧の変化 | 過去6時間〜12時間後の海面気圧（hPa）の折れ線 |
 
-> 時別（hourly）の気温・気圧の将来予報は気象庁の `bosai` JSON には含まれないため、気象庁の数値予報モデルを配信する [Open-Meteo](https://open-meteo.com/) の無料API（APIキー不要・CORS対応）を利用しています。グラフはバンドル不要の軽量インラインSVGで描画しています。
+過去は点線・予報は実線で区別し、**現在時刻**を縦線と「現在」マーカーで明示します。
 
-## 使用している気象庁エンドポイント
+## データ源
 
-- 予報: `https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json`
-- アメダス最新時刻: `https://www.jma.go.jp/bosai/amedas/data/latest_time.txt`
-- アメダス実況: `https://www.jma.go.jp/bosai/amedas/data/map/<YYYYMMDDHHMMSS>.json`
-- 天気アイコン: `https://www.jma.go.jp/bosai/forecast/img/<天気コード>.svg`
+- `https://api.open-meteo.com/v1/jma`（緯度経度=東京、`temperature_2m` / `weather_code` / `pressure_msl`、`past_days=1` / `forecast_days=2`）
 
-これらは CORS（`Access-Control-Allow-Origin: *`）に対応しているため、静的ホスティングからクライアントサイドで取得できます。
+時別（hourly）の気温・気圧の将来予報は気象庁の `bosai` 公開JSONには含まれないため、気象庁の数値予報モデル（MSM/GSM）を配信する [Open-Meteo](https://open-meteo.com/) の無料API（APIキー不要・CORS対応）を利用しています。グラフはライブラリ不要の軽量インラインSVGで描画しています。
 
 ## ローカルで動かす
 
@@ -43,4 +38,4 @@ python3 -m http.server 8000
 
 ## 出典
 
-[気象庁](https://www.jma.go.jp/bosai/) の予報・アメダス実況データを利用しています。
+[気象庁](https://www.jma.go.jp/) 数値予報モデル（MSM/GSM）・[Open-Meteo](https://open-meteo.com/) 経由のデータを利用しています。

@@ -4,41 +4,40 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>東京の天気 | 気象庁データ</title>
-  <meta name="description" content="気象庁の公開データから東京の今日の天気・気温・降水確率・気圧を表示します。">
+  <meta name="description" content="気象庁の数値予報モデル(MSM/GSM)から東京の天気・気温・気圧の移り変わり（過去6時間〜12時間後）を表示します。">
   <link rel="stylesheet" href="style.css">
-  <link rel="preconnect" href="https://www.jma.go.jp">
+  <link rel="preconnect" href="https://api.open-meteo.com">
 </head>
 <body>
   <main class="app">
     <header class="header">
       <h1 class="title">東京の天気</h1>
-      <p class="subtitle">気象庁の公開データを表示しています</p>
+      <p class="subtitle">過去6時間〜12時間後の移り変わり</p>
     </header>
 
     <section id="content" class="content" aria-live="polite">
       <div class="loading">
         <div class="spinner" aria-hidden="true"></div>
-        <p>気象庁からデータを取得しています…</p>
+        <p>予報データを取得しています…</p>
       </div>
     </section>
 
     <footer class="footer">
       <button id="reload" class="reload-btn" type="button">再読み込み</button>
-      <p class="updated" id="updated"></p>
-      <p class="source">
-        出典:
-        <a href="https://www.jma.go.jp/bosai/" target="_blank" rel="noopener">気象庁</a>
-        （予報・アメダス実況データ）
-      </p>
 
       <section class="history">
         <button id="history-toggle" class="history-btn" type="button"
                 aria-expanded="false" aria-controls="history-list">
           <span class="history-label">更新履歴</span>
-          <span class="history-ver">v0.4.0</span>
+          <span class="history-ver">v0.5.0</span>
           <span class="history-caret" aria-hidden="true">▾</span>
         </button>
         <ul id="history-list" class="history-list" hidden>
+          <li>
+            <span class="hv">0.5.0</span>
+            <span class="hd">2026-06-01</span>
+            <span class="ht">現在の天気・実況セクションを削除し、時別予報グラフのみのシンプルな構成に。出典は最下部に表示。</span>
+          </li>
           <li>
             <span class="hv">0.4.0</span>
             <span class="hd">2026-06-01</span>
@@ -61,6 +60,12 @@
           </li>
         </ul>
       </section>
+
+      <p class="source">
+        出典:
+        <a href="https://www.jma.go.jp/" target="_blank" rel="noopener">気象庁</a>
+        数値予報モデル（MSM/GSM）・<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由
+      </p>
     </footer>
   </main>
 
