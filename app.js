@@ -17,7 +17,33 @@ const ICON_BASE = "https://www.jma.go.jp/bosai/forecast/img/";
 const TOKYO_AREA_CODE = "130010"; // 東京地方
 const TOKYO_AMEDAS = "44132";     // 東京（アメダス観測所コード）
 
+// 12時間後までの時別予報（気象庁MSM/GSMモデルをOpen-Meteo経由で取得）
+const TOKYO_LAT = 35.6895;
+const TOKYO_LON = 139.6917;
+const HOURLY_URL =
+  `https://api.open-meteo.com/v1/jma?latitude=${TOKYO_LAT}&longitude=${TOKYO_LON}` +
+  `&hourly=temperature_2m,weather_code,pressure_msl&timezone=Asia%2FTokyo` +
+  `&timeformat=unixtime&forecast_days=2`;
+const FORECAST_HOURS = 12; // 何時間後まで表示するか
+
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+// WMO天気コード → 絵文字・文章（Open-Meteoの天気コード体系）
+function wmoWeather(code) {
+  const m = {
+    0: ["☀️", "快晴"], 1: ["🌤️", "晴れ"], 2: ["⛅", "薄曇り"], 3: ["☁️", "曇り"],
+    45: ["🌫️", "霧"], 48: ["🌫️", "霧"],
+    51: ["🌦️", "霧雨"], 53: ["🌦️", "霧雨"], 55: ["🌧️", "霧雨"],
+    56: ["🌧️", "凍える霧雨"], 57: ["🌧️", "凍える霧雨"],
+    61: ["🌧️", "弱い雨"], 63: ["🌧️", "雨"], 65: ["🌧️", "強い雨"],
+    66: ["🌧️", "凍雨"], 67: ["🌧️", "凍雨"],
+    71: ["🌨️", "弱い雪"], 73: ["🌨️", "雪"], 75: ["❄️", "強い雪"], 77: ["🌨️", "霧雪"],
+    80: ["🌦️", "にわか雨"], 81: ["🌧️", "にわか雨"], 82: ["⛈️", "激しいにわか雨"],
+    85: ["🌨️", "にわか雪"], 86: ["❄️", "強いにわか雪"],
+    95: ["⛈️", "雷雨"], 96: ["⛈️", "雹を伴う雷雨"], 99: ["⛈️", "激しい雷雨"],
+  };
+  return m[code] || ["•", "—"];
+}
 
 // --- ユーティリティ ----------------------------------------------------
 async function fetchJSON(url) {
@@ -140,6 +166,129 @@ async function fetchAmedas() {
   };
 }
 
+// --- 時別予報（12時間後まで）の取得 -----------------------------------
+async function fetchHourly() {
+  const data = await fetchJSON(HOURLY_URL);
+  const h = data.hourly;
+  const offset = data.utc_offset_seconds || 0;
+  const times = h.time; // unix秒(UTC)
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  // 現在の時刻を含む時間帯を起点にする
+  let start = times.findIndex((t) => t >= nowSec);
+  if (start < 0) start = 0;
+  if (start > 0) start -= 1; // 現在時刻を含むスロット
+  const end = Math.min(start + FORECAST_HOURS + 1, times.length);
+
+  const points = [];
+  for (let i = start; i < end; i++) {
+    const localHour = new Date((times[i] + offset) * 1000).getUTCHours();
+    points.push({
+      hour: localHour,
+      temp: h.temperature_2m ? h.temperature_2m[i] : null,
+      pressure: h.pressure_msl ? Math.round(h.pressure_msl[i]) : null,
+      code: h.weather_code ? h.weather_code[i] : null,
+    });
+  }
+  return points;
+}
+
+// --- 折れ線グラフ（インラインSVG） -------------------------------------
+function lineChart(points, accessor, { color, fill, unit, decimals = 0 }) {
+  const vals = points.map(accessor).filter((v) => v != null);
+  if (!vals.length) return "";
+  const W = 720, H = 190, padL = 34, padR = 18, padT = 22, padB = 26;
+  const n = points.length;
+  let min = Math.min(...vals), max = Math.max(...vals);
+  const range = max - min || 1;
+  const yMin = min - range * 0.18, yMax = max + range * 0.18;
+  const x = (i) => padL + (W - padL - padR) * (n === 1 ? 0.5 : i / (n - 1));
+  const y = (v) => padT + (H - padT - padB) * (1 - (v - yMin) / (yMax - yMin));
+
+  const pts = points
+    .map((p, i) => [i, accessor(p)])
+    .filter(([, v]) => v != null);
+
+  const linePts = pts.map(([i, v]) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const areaPts = `${x(pts[0][0]).toFixed(1)},${(H - padB).toFixed(1)} ${linePts} ${x(pts[pts.length - 1][0]).toFixed(1)},${(H - padB).toFixed(1)}`;
+
+  const dots = pts
+    .map(([i, v]) => {
+      const showLabel = i % 2 === 0 || v === min || v === max;
+      const label = showLabel
+        ? `<text x="${x(i).toFixed(1)}" y="${(y(v) - 9).toFixed(1)}" class="cval" text-anchor="middle">${v.toFixed(decimals)}</text>`
+        : "";
+      return `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.2" fill="${color}"/>${label}`;
+    })
+    .join("");
+
+  const xlabels = points
+    .map((p, i) =>
+      i % 2 === 0
+        ? `<text x="${x(i).toFixed(1)}" y="${(H - 8).toFixed(1)}" class="cx" text-anchor="middle">${p.hour}時</text>`
+        : ""
+    )
+    .join("");
+
+  return `
+    <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="g_${unit}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${fill}" stop-opacity="0.45"/>
+          <stop offset="100%" stop-color="${fill}" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <polygon points="${areaPts}" fill="url(#g_${unit})"/>
+      <polyline points="${linePts}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${dots}
+      ${xlabels}
+    </svg>`;
+}
+
+// 天気の時間帯ストリップ
+function weatherStrip(points) {
+  const cells = points
+    .map((p, i) => {
+      if (i % 2 !== 0) return ""; // 2時間ごとに表示
+      const [emoji, text] = wmoWeather(p.code);
+      return `<div class="wstrip-cell">
+          <div class="we">${emoji}</div>
+          <div class="wt">${escapeHtml(text)}</div>
+          <div class="wh">${p.hour}時</div>
+        </div>`;
+    })
+    .join("");
+  return `<div class="wstrip">${cells}</div>`;
+}
+
+function renderCharts(points) {
+  const el = document.getElementById("charts");
+  if (!el) return;
+  if (!points || !points.length) {
+    el.innerHTML = "";
+    return;
+  }
+  const last = points[points.length - 1];
+  el.innerHTML = `
+    <h2 class="section-title">${FORECAST_HOURS}時間後（${last.hour}時頃）までの予報</h2>
+    <p class="section-note">出典: 気象庁 数値予報モデル（MSM/GSM）・Open-Meteo 経由</p>
+
+    <div class="chart-card">
+      <div class="chart-head"><span class="chip weather">天気</span></div>
+      ${weatherStrip(points)}
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-head"><span class="chip temp">気温の変化</span><span class="chart-unit">°C</span></div>
+      ${lineChart(points, (p) => p.temp, { color: "#ff6b6b", fill: "#ff6b6b", unit: "temp", decimals: 1 })}
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-head"><span class="chip pressure">気圧の変化</span><span class="chart-unit">hPa</span></div>
+      ${lineChart(points, (p) => p.pressure, { color: "#2a7fd4", fill: "#2a7fd4", unit: "pres", decimals: 0 })}
+    </div>`;
+}
+
 // --- 描画 --------------------------------------------------------------
 function render(forecast, amedas) {
   const today = new Date();
@@ -204,6 +353,8 @@ function render(forecast, amedas) {
       <div class="label">降水確率（本日・時間帯別）</div>
       <div class="pops-grid">${popsCells}</div>
     </div>
+
+    <div id="charts" class="charts"></div>
   `;
 
   // 更新時刻
@@ -233,11 +384,13 @@ async function load() {
       <p>気象庁からデータを取得しています…</p>
     </div>`;
   try {
-    const [forecastData, amedas] = await Promise.all([
+    const [forecastData, amedas, hourly] = await Promise.all([
       fetchJSON(FORECAST_URL),
       fetchAmedas().catch(() => ({ time: null, temp: null, pressure: null, normalPressure: null, humidity: null })),
+      fetchHourly().catch((e) => { console.warn("hourly forecast unavailable:", e); return null; }),
     ]);
     render(parseForecast(forecastData), amedas);
+    renderCharts(hourly);
   } catch (err) {
     console.error(err);
     renderError(err);
