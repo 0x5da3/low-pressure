@@ -23,8 +23,9 @@ const TOKYO_LON = 139.6917;
 const HOURLY_URL =
   `https://api.open-meteo.com/v1/jma?latitude=${TOKYO_LAT}&longitude=${TOKYO_LON}` +
   `&hourly=temperature_2m,weather_code,pressure_msl&timezone=Asia%2FTokyo` +
-  `&timeformat=unixtime&forecast_days=2`;
+  `&timeformat=unixtime&past_days=1&forecast_days=2`;
 const FORECAST_HOURS = 12; // 何時間後まで表示するか
+const PAST_HOURS = 6;      // 何時間前から表示するか
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -196,11 +197,13 @@ async function fetchHourly() {
   const times = h.time; // unix秒(UTC)
   const nowSec = Math.floor(Date.now() / 1000);
 
-  // 現在の時刻を含む時間帯を起点にする
-  let start = times.findIndex((t) => t >= nowSec);
-  if (start < 0) start = 0;
-  if (start > 0) start -= 1; // 現在時刻を含むスロット
-  const end = Math.min(start + FORECAST_HOURS + 1, times.length);
+  // 現在時刻を含むスロット（その時間の正時 <= 現在 < 次の正時）を特定
+  let cur = times.findIndex((t) => t > nowSec) - 1;
+  if (cur < 0) cur = times.findIndex((t) => t >= nowSec);
+  if (cur < 0) cur = times.length - 1;
+
+  const start = Math.max(0, cur - PAST_HOURS);
+  const end = Math.min(cur + FORECAST_HOURS + 1, times.length);
 
   const points = [];
   for (let i = start; i < end; i++) {
@@ -210,70 +213,101 @@ async function fetchHourly() {
       temp: h.temperature_2m ? h.temperature_2m[i] : null,
       pressure: h.pressure_msl ? Math.round(h.pressure_msl[i]) : null,
       code: h.weather_code ? h.weather_code[i] : null,
+      isPast: i < cur,
+      isNow: i === cur,
     });
   }
-  return points;
+  return { points, nowIndex: cur - start };
 }
 
 // --- 折れ線グラフ（インラインSVG） -------------------------------------
-function lineChart(points, accessor, { color, fill, unit, decimals = 0 }) {
+function lineChart(points, accessor, { color, fill, unit, decimals = 0, nowIndex = -1 }) {
   const vals = points.map(accessor).filter((v) => v != null);
   if (!vals.length) return "";
-  const W = 720, H = 190, padL = 34, padR = 18, padT = 22, padB = 26;
+  const W = 720, H = 200, padL = 34, padR = 18, padT = 30, padB = 26;
   const n = points.length;
-  let min = Math.min(...vals), max = Math.max(...vals);
+  const min = Math.min(...vals), max = Math.max(...vals);
   const range = max - min || 1;
   const yMin = min - range * 0.18, yMax = max + range * 0.18;
   const x = (i) => padL + (W - padL - padR) * (n === 1 ? 0.5 : i / (n - 1));
   const y = (v) => padT + (H - padT - padB) * (1 - (v - yMin) / (yMax - yMin));
+  const toStr = (arr) => arr.map(([i, v]) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
 
-  const pts = points
-    .map((p, i) => [i, accessor(p)])
-    .filter(([, v]) => v != null);
+  const pts = points.map((p, i) => [i, accessor(p)]).filter(([, v]) => v != null);
+  const pastPts = nowIndex >= 0 ? pts.filter(([i]) => i <= nowIndex) : [];
+  const futPts = nowIndex >= 0 ? pts.filter(([i]) => i >= nowIndex) : pts;
 
-  const linePts = pts.map(([i, v]) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-  const areaPts = `${x(pts[0][0]).toFixed(1)},${(H - padB).toFixed(1)} ${linePts} ${x(pts[pts.length - 1][0]).toFixed(1)},${(H - padB).toFixed(1)}`;
+  const areaPts = `${x(pts[0][0]).toFixed(1)},${(H - padB).toFixed(1)} ${toStr(pts)} ${x(pts[pts.length - 1][0]).toFixed(1)},${(H - padB).toFixed(1)}`;
+
+  // 現在より前の領域を薄く塗って区別
+  const nowX = nowIndex >= 0 ? x(nowIndex) : null;
+  const pastShade = nowX != null
+    ? `<rect x="${padL}" y="${padT}" width="${(nowX - padL).toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" fill="rgba(20,40,80,0.06)"/>`
+    : "";
 
   const dots = pts
     .map(([i, v]) => {
-      const showLabel = i % 2 === 0 || v === min || v === max;
+      const isNow = i === nowIndex;
+      const showLabel = isNow || i % 2 === 0 || v === min || v === max;
       const label = showLabel
-        ? `<text x="${x(i).toFixed(1)}" y="${(y(v) - 9).toFixed(1)}" class="cval" text-anchor="middle">${v.toFixed(decimals)}</text>`
+        ? `<text x="${x(i).toFixed(1)}" y="${(y(v) - 10).toFixed(1)}" class="cval ${isNow ? "cval-now" : ""}" text-anchor="middle">${v.toFixed(decimals)}</text>`
         : "";
-      return `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.2" fill="${color}"/>${label}`;
+      const dot = isNow
+        ? `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="6" fill="#fff" stroke="${color}" stroke-width="3"/>`
+        : `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="${color}" ${i < nowIndex ? 'opacity="0.55"' : ""}/>`;
+      return dot + label;
     })
     .join("");
 
   const xlabels = points
     .map((p, i) =>
-      i % 2 === 0
-        ? `<text x="${x(i).toFixed(1)}" y="${(H - 8).toFixed(1)}" class="cx" text-anchor="middle">${p.hour}時</text>`
+      i % 2 === 0 || i === nowIndex
+        ? `<text x="${x(i).toFixed(1)}" y="${(H - 8).toFixed(1)}" class="cx ${i === nowIndex ? "cx-now" : ""}" text-anchor="middle">${p.hour}時</text>`
         : ""
     )
     .join("");
+
+  // 現在時刻の縦線＋ラベル
+  const nowMarker = nowX != null
+    ? `<line x1="${nowX.toFixed(1)}" y1="${padT - 8}" x2="${nowX.toFixed(1)}" y2="${H - padB}" class="nowline"/>
+       <text x="${nowX.toFixed(1)}" y="${padT - 13}" class="nowlabel" text-anchor="middle">現在</text>`
+    : "";
+
+  const pastLine = pastPts.length > 1
+    ? `<polyline points="${toStr(pastPts)}" fill="none" stroke="${color}" stroke-width="2.5" stroke-dasharray="2 5" stroke-opacity="0.55" stroke-linecap="round"/>`
+    : "";
+  const futLine = `<polyline points="${toStr(futPts)}" fill="none" stroke="${color}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>`;
 
   return `
     <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" preserveAspectRatio="xMidYMid meet">
       <defs>
         <linearGradient id="g_${unit}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${fill}" stop-opacity="0.45"/>
+          <stop offset="0%" stop-color="${fill}" stop-opacity="0.4"/>
           <stop offset="100%" stop-color="${fill}" stop-opacity="0"/>
         </linearGradient>
       </defs>
+      ${pastShade}
       <polygon points="${areaPts}" fill="url(#g_${unit})"/>
-      <polyline points="${linePts}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${pastLine}
+      ${futLine}
+      ${nowMarker}
       ${dots}
       ${xlabels}
     </svg>`;
 }
 
 // 天気の時間帯ストリップ
-function weatherStrip(points) {
+function weatherStrip(points, nowIndex) {
   const cells = points
     .map((p, i) => {
-      if (i % 2 !== 0) return ""; // 2時間ごとに表示
+      // 「現在」を必ず含むよう、現在を基準に2時間ごとに表示
+      if (nowIndex >= 0 && Math.abs(i - nowIndex) % 2 !== 0) return "";
+      if (nowIndex < 0 && i % 2 !== 0) return "";
       const [emoji, text] = wmoWeather(p.code);
-      return `<div class="wstrip-cell">
+      const cls = p.isNow ? "wstrip-cell now" : (p.isPast ? "wstrip-cell past" : "wstrip-cell");
+      const badge = p.isNow ? `<div class="wnow">現在</div>` : "";
+      return `<div class="${cls}">
+          ${badge}
           <div class="we">${emoji}</div>
           <div class="wt">${escapeHtml(text)}</div>
           <div class="wh">${p.hour}時</div>
@@ -283,31 +317,31 @@ function weatherStrip(points) {
   return `<div class="wstrip">${cells}</div>`;
 }
 
-function renderCharts(points) {
+function renderCharts(data) {
   const el = document.getElementById("charts");
   if (!el) return;
-  if (!points || !points.length) {
+  if (!data || !data.points || !data.points.length) {
     el.innerHTML = "";
     return;
   }
-  const last = points[points.length - 1];
+  const { points, nowIndex } = data;
   el.innerHTML = `
-    <h2 class="section-title">${FORECAST_HOURS}時間後（${last.hour}時頃）までの予報</h2>
-    <p class="section-note">出典: 気象庁 数値予報モデル（MSM/GSM）・Open-Meteo 経由</p>
+    <h2 class="section-title">時別予報（過去${PAST_HOURS}時間〜${FORECAST_HOURS}時間後）</h2>
+    <p class="section-note">点線=過去 / 実線=予報　・　出典: 気象庁 数値予報モデル（MSM/GSM）・Open-Meteo 経由</p>
 
     <div class="chart-card">
       <div class="chart-head"><span class="chip weather">天気</span></div>
-      ${weatherStrip(points)}
+      ${weatherStrip(points, nowIndex)}
     </div>
 
     <div class="chart-card">
       <div class="chart-head"><span class="chip temp">気温の変化</span><span class="chart-unit">°C</span></div>
-      ${lineChart(points, (p) => p.temp, { color: "#ff6b6b", fill: "#ff6b6b", unit: "temp", decimals: 1 })}
+      ${lineChart(points, (p) => p.temp, { color: "#ff6b6b", fill: "#ff6b6b", unit: "temp", decimals: 1, nowIndex })}
     </div>
 
     <div class="chart-card">
       <div class="chart-head"><span class="chip pressure">気圧の変化</span><span class="chart-unit">hPa</span></div>
-      ${lineChart(points, (p) => p.pressure, { color: "#2a7fd4", fill: "#2a7fd4", unit: "pres", decimals: 0 })}
+      ${lineChart(points, (p) => p.pressure, { color: "#2a7fd4", fill: "#2a7fd4", unit: "pres", decimals: 0, nowIndex })}
     </div>`;
 }
 
@@ -344,6 +378,9 @@ function render(forecast, amedas) {
     : `<div class="value">${forecast.tempMax != null ? forecast.tempMax : "—"}<span class="unit">°C</span></div><div class="sub">本日の予想最高気温</div>`;
 
   document.getElementById("content").innerHTML = `
+    <div id="charts" class="charts"></div>
+
+    <h2 class="section-title">現在の天気・実況</h2>
     <div class="hero">
       <div class="date">${formatDate(today)}</div>
       <div class="icon" id="hero-icon"><span class="emoji-icon" role="img" aria-label="${escapeHtml(forecast.weatherText)}">${jmaEmoji(iconCode)}</span></div>
@@ -375,8 +412,6 @@ function render(forecast, amedas) {
       <div class="label">降水確率（本日・時間帯別）</div>
       <div class="pops-grid">${popsCells}</div>
     </div>
-
-    <div id="charts" class="charts"></div>
   `;
 
   // 更新時刻

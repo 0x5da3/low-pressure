@@ -140,7 +140,11 @@ body {
 
 .chart { width: 100%; height: auto; display: block; }
 .chart .cval { fill: #41506a; font-size: 12px; font-weight: 700; }
+.chart .cval-now { fill: #12203a; font-size: 13px; }
 .chart .cx { fill: #8a98ac; font-size: 11px; }
+.chart .cx-now { fill: #12203a; font-weight: 700; }
+.chart .nowline { stroke: #12203a; stroke-width: 1.6; stroke-dasharray: 4 3; opacity: 0.7; }
+.chart .nowlabel { fill: #12203a; font-size: 12px; font-weight: 700; }
 
 .wstrip {
   display: flex;
@@ -149,12 +153,30 @@ body {
   padding: 6px 2px 10px;
 }
 .wstrip-cell {
+  position: relative;
   flex: 1 0 auto;
   min-width: 52px;
   text-align: center;
   background: #f1f5fb;
   border-radius: 12px;
   padding: 8px 4px;
+}
+.wstrip-cell.past { opacity: 0.5; }
+.wstrip-cell.now {
+  background: #fff7e0;
+  box-shadow: 0 0 0 2px #ffb703;
+  opacity: 1;
+}
+.wstrip-cell .wnow {
+  position: absolute;
+  top: -9px; left: 50%; transform: translateX(-50%);
+  background: #ffb703;
+  color: #3a2c00;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 .wstrip-cell .we { font-size: 1.5rem; line-height: 1.2; }
 .wstrip-cell .wt { font-size: 0.66rem; color: #5b6b86; margin-top: 2px; }
