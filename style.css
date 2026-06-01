@@ -175,6 +175,32 @@ body {
   color: var(--text);
 }
 
+/* --- スマホ最適化 --- */
+@media (max-width: 560px) {
+  body { padding: 14px 10px 32px; }
+  .header { margin-bottom: 16px; }
+  .title { font-size: 1.55rem; }
+  .subtitle { font-size: 0.82rem; }
+  .content { gap: 12px; }
+
+  .chart-card { padding: 12px 8px 4px; border-radius: 16px; }
+  .chart-head { padding: 0 2px; }
+  /* viewBox を縦長にしているぶん、軸ラベルを少しだけ大きく */
+  .chart .cval { font-size: 13px; }
+  .chart .cval-now { font-size: 14px; }
+  .chart .cx { font-size: 12px; }
+  .chart .nowlabel { font-size: 13px; }
+
+  .wstrip { gap: 5px; }
+  .wstrip-cell { min-width: 0; flex: 1 1 0; padding: 8px 2px; }
+  .wstrip-cell .we { font-size: 1.35rem; }
+
+  .footer { margin-top: 18px; }
+  .reload-btn { padding: 11px 28px; } /* タップしやすい高さを確保 */
+  .history-list { max-width: 100%; }
+  .history-list li { padding: 9px 10px; }
+}
+
 /* --- ローディング / エラー --- */
 .loading, .error {
   text-align: center;

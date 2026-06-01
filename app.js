@@ -44,6 +44,11 @@ function escapeHtml(s) {
   ));
 }
 
+// スマホ幅かどうか（CSSの 560px ブレークポイントと一致させる）
+function isCompact() {
+  return typeof window !== "undefined" && window.innerWidth <= 560;
+}
+
 // --- 時別予報（過去6時間〜12時間後）の取得 -----------------------------
 async function fetchHourly() {
   const data = await fetchJSON(HOURLY_URL);
@@ -79,7 +84,12 @@ async function fetchHourly() {
 function lineChart(points, accessor, { color, fill, unit, decimals = 0, nowIndex = -1 }) {
   const vals = points.map(accessor).filter((v) => v != null);
   if (!vals.length) return "";
-  const W = 720, H = 200, padL = 34, padR = 18, padT = 30, padB = 26;
+  // スマホでは viewBox を実描画幅に近い縦長にして、文字が潰れないようにする
+  const compact = isCompact();
+  const W = compact ? 360 : 720;
+  const H = compact ? 240 : 200;
+  const padL = compact ? 30 : 34, padR = compact ? 14 : 18, padT = 30, padB = 26;
+  const labelStep = compact ? 3 : 2; // 狭い画面ではラベルを間引く
   const n = points.length;
   const min = Math.min(...vals), max = Math.max(...vals);
   const range = max - min || 1;
@@ -103,7 +113,7 @@ function lineChart(points, accessor, { color, fill, unit, decimals = 0, nowIndex
   const dots = pts
     .map(([i, v]) => {
       const isNow = i === nowIndex;
-      const showLabel = isNow || i % 2 === 0 || v === min || v === max;
+      const showLabel = isNow || i % labelStep === 0 || v === min || v === max;
       const label = showLabel
         ? `<text x="${x(i).toFixed(1)}" y="${(y(v) - 10).toFixed(1)}" class="cval ${isNow ? "cval-now" : ""}" text-anchor="middle">${v.toFixed(decimals)}</text>`
         : "";
@@ -116,7 +126,7 @@ function lineChart(points, accessor, { color, fill, unit, decimals = 0, nowIndex
 
   const xlabels = points
     .map((p, i) =>
-      i % 2 === 0 || i === nowIndex
+      i % labelStep === 0 || i === nowIndex
         ? `<text x="${x(i).toFixed(1)}" y="${(H - 8).toFixed(1)}" class="cx ${i === nowIndex ? "cx-now" : ""}" text-anchor="middle">${p.hour}時</text>`
         : ""
     )
@@ -153,11 +163,12 @@ function lineChart(points, accessor, { color, fill, unit, decimals = 0, nowIndex
 
 // 天気の時間帯ストリップ
 function weatherStrip(points, nowIndex) {
+  const step = isCompact() ? 3 : 2; // スマホでは間引いて横スクロールを抑える
   const cells = points
     .map((p, i) => {
-      // 「現在」を必ず含むよう、現在を基準に2時間ごとに表示
-      if (nowIndex >= 0 && Math.abs(i - nowIndex) % 2 !== 0) return "";
-      if (nowIndex < 0 && i % 2 !== 0) return "";
+      // 「現在」を必ず含むよう、現在を基準に step 時間ごとに表示
+      if (nowIndex >= 0 && Math.abs(i - nowIndex) % step !== 0) return "";
+      if (nowIndex < 0 && i % step !== 0) return "";
       const [emoji, text] = wmoWeather(p.code);
       const cls = p.isNow ? "wstrip-cell now" : (p.isPast ? "wstrip-cell past" : "wstrip-cell");
       const badge = p.isNow ? `<div class="wnow">現在</div>` : "";
@@ -173,6 +184,7 @@ function weatherStrip(points, nowIndex) {
 }
 
 // --- 描画 --------------------------------------------------------------
+let lastChartData = null; // リサイズ時の再描画用に直近データを保持
 function renderCharts(data) {
   const el = document.getElementById("content");
   if (!el) return;
@@ -180,6 +192,7 @@ function renderCharts(data) {
     renderError(new Error("予報データを取得できませんでした。"));
     return;
   }
+  lastChartData = data;
   const { points, nowIndex } = data;
   el.innerHTML = `
     <div class="charts">
@@ -234,4 +247,18 @@ historyToggle.addEventListener("click", () => {
   historyToggle.setAttribute("aria-expanded", String(!expanded));
   historyList.hidden = expanded;
 });
+
+// 画面幅がブレークポイントをまたいだら（端末回転など）グラフを描き直す
+let resizeTimer = null;
+let wasCompact = isCompact();
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (isCompact() !== wasCompact && lastChartData) {
+      wasCompact = isCompact();
+      renderCharts(lastChartData);
+    }
+  }, 150);
+});
+
 load();
