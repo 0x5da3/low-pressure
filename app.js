@@ -45,6 +45,28 @@ function wmoWeather(code) {
   return m[code] || ["•", "—"];
 }
 
+// 気象庁の天気コード → 絵文字（アイコン画像が読めない場合のフォールバック）
+// 先頭桁: 1=晴 2=曇 3=雨 4=雪（300台でも雪/雷を含む細分は概略で表現）
+function jmaEmoji(code) {
+  const c = String(code || "");
+  if (!c) return "🌡️";
+  const specifics = {
+    "100": "☀️", "101": "🌤️", "110": "🌤️", "111": "🌤️", "112": "🌦️", "115": "🌦️",
+    "200": "☁️", "201": "⛅", "202": "🌧️", "210": "⛅", "211": "🌤️", "212": "🌧️",
+    "300": "🌧️", "301": "🌦️", "302": "🌧️", "303": "🌨️", "308": "🌧️",
+    "311": "🌦️", "313": "🌧️", "314": "🌨️", "400": "❄️", "401": "🌨️",
+    "402": "❄️", "403": "🌨️", "406": "❄️", "411": "🌨️", "413": "🌨️",
+  };
+  if (specifics[c]) return specifics[c];
+  switch (c[0]) {
+    case "1": return "☀️";
+    case "2": return "☁️";
+    case "3": return "🌧️";
+    case "4": return "❄️";
+    default: return "🌡️";
+  }
+}
+
 // --- ユーティリティ ----------------------------------------------------
 async function fetchJSON(url) {
   const res = await fetch(url, { cache: "no-store" });
@@ -324,7 +346,7 @@ function render(forecast, amedas) {
   document.getElementById("content").innerHTML = `
     <div class="hero">
       <div class="date">${formatDate(today)}</div>
-      ${iconUrl ? `<div class="icon"><img src="${iconUrl}" alt="${escapeHtml(forecast.weatherText)}"></div>` : ""}
+      <div class="icon" id="hero-icon"><span class="emoji-icon" role="img" aria-label="${escapeHtml(forecast.weatherText)}">${jmaEmoji(iconCode)}</span></div>
       <div class="weather-text">${escapeHtml(forecast.weatherText)}</div>
       <div class="area">${escapeHtml(forecast.area)}の天気</div>
     </div>
@@ -365,6 +387,16 @@ function render(forecast, amedas) {
   };
   document.getElementById("updated").textContent =
     `予報発表: ${fmt(forecast.reportDatetime)}　/　実況: ${fmt(amedas.time)}`;
+
+  // 気象庁のSVGアイコンが読み込めた場合のみ、絵文字から差し替える（読めなければ絵文字のまま）
+  if (iconUrl) {
+    const probe = new Image();
+    probe.onload = () => {
+      const box = document.getElementById("hero-icon");
+      if (box) box.innerHTML = `<img src="${iconUrl}" alt="${escapeHtml(forecast.weatherText)}">`;
+    };
+    probe.src = iconUrl;
+  }
 }
 
 function renderError(err) {

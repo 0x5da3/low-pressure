@@ -50,6 +50,7 @@ body {
 .hero .date { color: var(--text-dim); font-size: 0.95rem; margin-bottom: 12px; }
 .hero .icon { width: 110px; height: 110px; margin: 0 auto 8px; }
 .hero .icon img { width: 100%; height: 100%; object-fit: contain; }
+.hero .icon .emoji-icon { font-size: 88px; line-height: 110px; display: block; }
 .hero .weather-text { font-size: 1.5rem; font-weight: 700; }
 .hero .area { color: var(--text-dim); font-size: 0.85rem; margin-top: 6px; }
 
