@@ -430,4 +430,13 @@ async function load() {
 }
 
 document.getElementById("reload").addEventListener("click", load);
+
+// 更新履歴の展開/折りたたみ
+const historyToggle = document.getElementById("history-toggle");
+const historyList = document.getElementById("history-list");
+historyToggle.addEventListener("click", () => {
+  const expanded = historyToggle.getAttribute("aria-expanded") === "true";
+  historyToggle.setAttribute("aria-expanded", String(!expanded));
+  historyList.hidden = expanded;
+});
 load();

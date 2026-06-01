@@ -180,6 +180,57 @@ body {
 .source a { color: var(--accent); text-decoration: none; }
 .source a:hover { text-decoration: underline; }
 
+/* --- 更新履歴 --- */
+.history { margin-top: 20px; }
+.history-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.history-btn:hover { background: rgba(255, 255, 255, 0.2); }
+.history-ver { color: var(--text-dim); font-weight: 700; }
+.history-caret { transition: transform 0.2s; font-size: 0.7rem; }
+.history-btn[aria-expanded="true"] .history-caret { transform: rotate(180deg); }
+
+.history-list {
+  list-style: none;
+  margin: 14px auto 0;
+  max-width: 460px;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  padding: 8px 6px;
+}
+.history-list li {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 4px 10px;
+  align-items: baseline;
+  padding: 10px 12px;
+}
+.history-list li + li { border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.history-list .hv {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--accent);
+}
+.history-list .hd { font-size: 0.74rem; color: var(--text-dim); }
+.history-list .ht {
+  grid-column: 1 / -1;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
 /* --- ローディング / エラー --- */
 .loading, .error {
   text-align: center;
